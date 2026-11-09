@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Painel de salários · demo</title>
+<meta name="description" content="Demo interativa de um painel de salários por departamento e filial, reproduzindo um relatório feito no Power BI. Dados fictícios.">
+<style>
+:root{--bg:#111315;--surface:#181B1E;--ink:#ECEDEE;--muted:#9A9FA5;--line:#2A2E32;--accent:#6FC4B2;--accent-ink:#0B1A17;--gold:#D9A95A;color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 48px}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:20px}
+h1{margin:0;font-size:clamp(1.3rem,3vw,1.8rem);font-weight:600;letter-spacing:-.01em}
+.sub{margin:4px 0 0;color:var(--muted);font-size:.9rem}
+.badge{display:inline-block;border:1px solid var(--line);color:var(--gold);border-radius:999px;padding:3px 10px;font-size:.75rem;letter-spacing:.04em;text-transform:uppercase}
+.top{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.dl{font-size:.85rem;color:var(--accent-ink);background:var(--accent);border-radius:999px;padding:7px 16px;text-decoration:none;font-weight:500;min-height:36px;display:inline-flex;align-items:center}
+.dl:hover{filter:brightness(1.08)}
+.bar{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-bottom:16px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip,.clear{font:inherit;font-size:.85rem;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer;min-height:36px}
+.chip:hover,.clear:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.clear{color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
+.kpi,.card{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.kpi{padding:14px 16px}
+.kpi span{display:block;color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+.kpi strong{display:block;font-size:clamp(1.15rem,2.6vw,1.6rem);font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+.card{padding:16px 16px 10px;min-width:0}
+.card h2{margin:0 0 8px;font-size:.95rem;font-weight:600}
+.c12{grid-column:span 12}.c7{grid-column:span 7}.c5{grid-column:span 5}.c6{grid-column:span 6}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{fill:var(--muted);font-size:11px;font-family:inherit}
+svg .grid-l{stroke:var(--line);stroke-width:1}
+svg .val{fill:var(--ink);font-size:11px}
+.hit{cursor:pointer;transition:opacity .2s}
+.hit:hover{opacity:.85}
+.dim{opacity:.28}
+.slicer{display:grid;gap:14px;padding:6px 2px 12px}
+.slicer label{display:flex;justify-content:space-between;color:var(--muted);font-size:.85rem}
+.slicer output{color:var(--ink);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent);min-height:28px}
+.empty{color:var(--muted);padding:28px 0;text-align:center}
+.note{margin:22px 0 0;color:var(--muted);font-size:.82rem;border-top:1px solid var(--line);padding-top:14px}
+@media (max-width:820px){.c7,.c5,.c6{grid-column:span 12}.kpis{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Painel de salários por departamento e filial</h1>
+      <p class="sub">Clique nas barras, nos botões de filial ou arraste o filtro de salário. Tudo se atualiza junto.</p>
+    </div>
+    <div class="top">
+      <span class="badge">Demo · dados fictícios</span>
+      <a class="dl" href="modelos/painel-salarios.pbix" download>Baixar o projeto (.pbix)</a>
+    </div>
+  </header>
+
+  <div class="bar">
+    <div class="chips" id="filiais" role="group" aria-label="Filtrar por filial"></div>
+    <button class="clear" id="clear" type="button">Limpar filtros</button>
+  </div>
+
+  <div class="kpis" aria-live="polite">
+    <div class="kpi"><span>Massa salarial</span><strong id="k-sum">–</strong></div>
+    <div class="kpi"><span>Colaboradores</span><strong id="k-n">–</strong></div>
+    <div class="kpi"><span>Salário médio</span><strong id="k-avg">–</strong></div>
+  </div>
+
+  <div class="grid">
+    <section class="card c12"><h2>Salário por filial e colaborador</h2><div id="ch-emp"></div></section>
+    <section class="card c5"><h2>Colaboradores por departamento</h2><div id="ch-cnt"></div></section>
+    <section class="card c7"><h2>Salário por departamento</h2><div id="ch-dep"></div></section>
+    <section class="card c12"><h2>Filtro de salário</h2>
+      <div class="slicer">
+        <label for="min">Mínimo <output id="o-min"></output></label><input type="range" id="min">
+        <label for="max">Máximo <output id="o-max"></output></label><input type="range" id="max">
+      </div>
+    </section>
+  </div>
+
+  <p class="note">Demonstração feita em HTML, CSS e JavaScript a partir de um relatório do Power BI (tabela de RH com colaborador, departamento, filial e salário). Nomes e valores são fictícios.</p>
+</div>
+
+<script>
+(function(){
+  // colaborador, departamento, filial, salário (fictícios)
+  var D=[
+    ["Ana Lima","Cozinha","Matriz",2650],["Bruno Reis","Cozinha","Matriz",3100],["Carla Souza","Salão","Matriz",2200],
+    ["Diego Alves","Salão","Matriz",2350],["Elisa Prado","Administrativo","Matriz",4100],["Fábio Neri","Compras","Matriz",4800],
+    ["Gisele Matos","Financeiro","Matriz",6200],["Hugo Pires","Cozinha","Centro",2900],["Isabela Cruz","Cozinha","Centro",2500],
+    ["João Paulo","Salão","Centro",2150],["Karina Dias","Salão","Centro",2300],["Leandro Maia","Administrativo","Centro",3800],
+    ["Marina Rocha","Compras","Centro",4500],["Nelson Braga","Cozinha","Norte",2700],["Olívia Tavares","Salão","Norte",2250],
+    ["Paulo Mendes","Salão","Norte",2100],["Quitéria Lopes","Administrativo","Norte",3600],["Rafael Costa","Compras","Norte",4300],
+    ["Sabrina Melo","Financeiro","Norte",5800],["Tiago Barros","Cozinha","Norte",3300]
+  ];
+  var FILIAIS=["Matriz","Centro","Norte"], DEPS=["Cozinha","Salão","Administrativo","Compras","Financeiro"];
+  var sal=D.map(function(r){return r[3]});
+  var LO=Math.floor(Math.min.apply(null,sal)/100)*100, HI=Math.ceil(Math.max.apply(null,sal)/100)*100;
+  var S={f:null,d:null,min:LO,max:HI};
+  var $=function(id){return document.getElementById(id)};
+  var money=function(n){return n.toLocaleString("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:0})};
+  var NS="http://www.w3.org/2000/svg";
+
+  function nice(max){var p=Math.pow(10,Math.floor(Math.log10(max))),f=max/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p}
+  function k(n){return n>=1000?(n/1000).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mil":String(n)}
+
+  // chips de filial
+  var fb=$("filiais");
+  FILIAIS.forEach(function(f){
+    var b=document.createElement("button");b.type="button";b.className="chip";b.textContent=f;b.dataset.f=f;b.setAttribute("aria-pressed","false");fb.appendChild(b);
+  });
+  fb.addEventListener("click",function(e){var b=e.target.closest("[data-f]");if(!b)return;S.f=S.f===b.dataset.f?null:b.dataset.f;render()});
+
+  // filtro de salário
+  ["min","max"].forEach(function(id){var el=$(id);el.min=LO;el.max=HI;el.step=100;el.value=id==="min"?LO:HI;
+    el.addEventListener("input",function(){
+      S.min=+$("min").value;S.max=+$("max").value;
+      if(S.min>S.max){if(id==="min"){S.max=S.min;$("max").value=S.max}else{S.min=S.max;$("min").value=S.min}}
+      render();
+    });
+  });
+  $("clear").addEventListener("click",function(){S.f=null;S.d=null;S.min=LO;S.max=HI;$("min").value=LO;$("max").value=HI;render()});
+
+  function toggle(e){
+    var t=e.target.closest("[data-d],[data-f2]");if(!t)return;
+    if(e.type==="keydown"&&e.key!=="Enter"&&e.key!==" ")return;
+    if(e.type==="keydown")e.preventDefault();
+    if(t.dataset.d!==undefined)S.d=S.d===t.dataset.d?null:t.dataset.d;
+    else if(t.dataset.f2!==undefined)S.f=S.f===t.dataset.f2?null:t.dataset.f2;
+    render();
+  }
+  ["ch-emp","ch-cnt","ch-dep"].forEach(function(id){$(id).addEventListener("click",toggle);$(id).addEventListener("keydown",toggle)});
+
+  function svg(w,h,inner,label){return '<svg viewBox="0 0 '+w+' '+h+'" role="img" aria-label="'+label+'">'+inner+'</svg>'}
+
+  function gridY(x0,x1,y0,h,max,steps){
+    var s="";for(var i=0;i<=steps;i++){var v=max/steps*i,y=y0+h-(v/max)*h;
+      s+='<line class="grid-l" x1="'+x0+'" x2="'+x1+'" y1="'+y+'" y2="'+y+'"/><text x="'+(x0-8)+'" y="'+(y+4)+'" text-anchor="end">'+k(v)+'</text>'}
+    return s}
+
+  function chartEmp(rows){
+    if(!rows.length)return '<p class="empty">Nenhum colaborador nesse filtro.</p>';
+    var order={};FILIAIS.forEach(function(f,i){order[f]=i});
+    var r=rows.slice().sort(function(a,b){return order[a[2]]-order[b[2]]||b[3]-a[3]});
+    var W=1000,H=330,L=52,R=8,T=14,B=96,pw=W-L-R,ph=H-T-B,max=nice(HI),n=r.length,slot=pw/n,bw=Math.min(slot*.68,34);
+    var s=gridY(L,W-R,T,ph,max,4),groups={};
+    r.forEach(function(d,i){
+      var x=L+slot*i+(slot-bw)/2,bh=d[3]/max*ph,y=T+ph-bh,on=!S.f||S.f===d[2];
+      s+='<rect class="hit'+(on?'':' dim')+'" data-f2="'+d[2]+'" tabindex="0" role="button" aria-label="'+d[0]+', '+d[2]+', '+money(d[3])+'" x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="3" fill="'+(["#6FC4B2","#D9A95A","#8FA8E8"][order[d[2]]])+'"/>';
+      s+='<text transform="translate('+(x+bw/2+3)+','+(T+ph+10)+') rotate(-50)" text-anchor="end">'+d[0]+'</text>';
+      var g=groups[d[2]]||(groups[d[2]]={a:i,b:i});g.b=i;
+    });
+    Object.keys(groups).forEach(function(f){var g=groups[f],x1=L+slot*g.a+4,x2=L+slot*(g.b+1)-4;
+      s+='<line x1="'+x1+'" x2="'+x2+'" y1="'+(H-18)+'" y2="'+(H-18)+'" stroke="var(--line)" stroke-width="2"/><text x="'+((x1+x2)/2)+'" y="'+(H-3)+'" text-anchor="middle" style="fill:var(--ink)">'+f+'</text>'});
+    return svg(W,H,s,"Salário por colaborador, agrupado por filial");
+  }
+
+  function chartCnt(base){
+    var W=440,H=250,L=104,R=40,T=8,rowH=(H-T-8)/DEPS.length,pw=W-L-R,c={};
+    base.forEach(function(d){c[d[1]]=(c[d[1]]||0)+1});
+    var max=Math.max(1,Math.max.apply(null,DEPS.map(function(d){return c[d]||0})));
+    var s="";
+    DEPS.forEach(function(d,i){var v=c[d]||0,y=T+rowH*i,bh=rowH*.62,on=!S.d||S.d===d;
+      s+='<text x="'+(L-10)+'" y="'+(y+rowH/2+4)+'" text-anchor="end" style="fill:var(--ink)">'+d+'</text>';
+      s+='<rect class="hit'+(on?'':' dim')+'" data-d="'+d+'" tabindex="0" role="button" aria-label="'+d+': '+v+' colaboradores" x="'+L+'" y="'+(y+(rowH-bh)/2)+'" width="'+Math.max(v/max*pw,v?3:0)+'" height="'+bh+'" rx="3" fill="#6FC4B2"/>';
+      s+='<text class="val" x="'+(L+v/max*pw+6)+'" y="'+(y+rowH/2+4)+'">'+v+'</text>'});
+    return svg(W,H,s,"Número de colaboradores por departamento");
+  }
+
+  function chartDep(base){
+    var W=600,H=250,L=52,R=8,T=14,B=44,pw=W-L-R,ph=H-T-B,sum={};
+    base.forEach(function(d){sum[d[1]]=(sum[d[1]]||0)+d[3]});
+    var maxV=Math.max.apply(null,DEPS.map(function(d){return sum[d]||0})),max=nice(Math.max(maxV,1000)),slot=pw/DEPS.length,bw=Math.min(slot*.6,60);
+    var s=gridY(L,W-R,T,ph,max,4);
+    DEPS.forEach(function(d,i){var v=sum[d]||0,x=L+slot*i+(slot-bw)/2,bh=v/max*ph,on=!S.d||S.d===d;
+      s+='<rect class="hit'+(on?'':' dim')+'" data-d="'+d+'" tabindex="0" role="button" aria-label="'+d+': '+money(v)+'" x="'+x+'" y="'+(T+ph-bh)+'" width="'+bw+'" height="'+bh+'" rx="3" fill="#D9A95A"/>';
+      if(v)s+='<text class="val" x="'+(x+bw/2)+'" y="'+(T+ph-bh-6)+'" text-anchor="middle">'+k(v)+'</text>';
+      s+='<text x="'+(x+bw/2)+'" y="'+(H-22)+'" text-anchor="middle" style="fill:var(--ink)">'+d+'</text>'});
+    return svg(W,H,s,"Massa salarial por departamento");
+  }
+
+  function render(){
+    var inSal=function(d){return d[3]>=S.min&&d[3]<=S.max};
+    var base=D.filter(function(d){return inSal(d)&&(!S.f||d[2]===S.f)});            // para os gráficos de departamento
+    var rows=base.filter(function(d){return !S.d||d[1]===S.d});                      // para o resto
+    var total=rows.reduce(function(a,d){return a+d[3]},0);
+    $("k-sum").textContent=rows.length?money(total):"–";
+    $("k-n").textContent=rows.length;
+    $("k-avg").textContent=rows.length?money(total/rows.length):"–";
+    $("o-min").textContent=money(S.min);$("o-max").textContent=money(S.max);
+    Array.prototype.forEach.call(fb.children,function(b){b.setAttribute("aria-pressed",String(S.f===b.dataset.f))});
+    $("ch-emp").innerHTML=chartEmp(rows);
+    $("ch-cnt").innerHTML=chartCnt(base);
+    $("ch-dep").innerHTML=chartDep(base);
+  }
+  render();
+})();
+</script>
+</body>
+</html>
